@@ -5,26 +5,143 @@ date: "1/28/2022"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r setup, include = TRUE, warnings = FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+library(tidyverse)
+library(palmerpenguins)
+library(GGally)
+library(broom)
+library(jtools)
+library(caret)
+library(AICcmodavg)
 ```
 
-## R Markdown
+### Intro
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+In lectures this week, we are learning about logistic regression - where based on predictor variables, we can estimate the probability of different discrete outcomes for a categorical variable. If there are only two mutually exclusive outcomes, we might use *binary logistic regression*, and for > 2 mutually exclusive outcomes we might use *multinomial logistic regression.* If the dependent variable is *ordinal* (discrete levels with meaningful order), we might use *ordinal logistic regression*.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+Here, we will use *binary logistic regression* to find probabilities that a penguin is species Chinstrap or Adelie, based on several variables.  We'll compare the performance of two competing models using AIC and cross validation, based on how accurately it classifies the penguin species.
 
-```{r cars}
-summary(cars)
+### 1. Binary logistic regression
+
+#### a. Exploration with `ggpairs`
+
+First, let's remind ourselves of the penguins data. We will only consider variables species, bill depth, bill length, body mass, flipper length and sex.
+
+```{r}
+penguins %>% 
+  select(species, bill_length_mm:sex) %>% 
+  ggpairs(aes(color=species))
 ```
 
-## Including Plots
+We want to explore the relationship between bill length, depth, mass, flipper length, and sex (those will be our explanatory variables) and penguin species (that's our dependent variable).
 
-You can also embed plots, for example:
+To start, we'll just choose two species (those that are *most similar* across these variables to make it interesting), Adelie and Chinstrap penguins.
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+#### b. Make subset with Adelie and Chinstrap penguins
+- This is because we can only look at two of them through binary logistic regression
+
+```{r}
+### note species is a factor
+class(penguins$species)
+levels(penguins$species)
+
+adelie_chinstrap <- penguins %>% 
+  filter(species %in% c('Adelie', 'Chinstrap')) %>% 
+  mutate(species = fct_drop(species)) %>% 
+  select(-island, -year) %>% 
+  drop_na()
+
+### This will drop a factor level that doesn't appear (otherwise Gentoo will still show up as a factor level, even though there are no remaining 
+### observations for Gentoo penguins...)
+
+### Check the levels (note here Adelie is before Chinstrap, so Adelie 
+### will be 0, Chinstrap will be 1)
+class(adelie_chinstrap$species)
+levels(adelie_chinstrap$species)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+#### c. Let's just check out trends across variables for those two species
+
+```{r}
+ggplot(data = adelie_chinstrap, aes(x = body_mass_g, y = flipper_length_mm)) +
+  geom_point(aes(color = sex)) +
+  facet_wrap(~species)
+ 
+ggplot(data = adelie_chinstrap, aes(x = body_mass_g, y = bill_length_mm)) +
+  geom_point(aes(color = sex)) +
+  facet_wrap(~species)
+
+#For both species males seem to be in upper right hand corner while females seem to be in lower left hand corner 
+```
+
+#### Logistic Regression in R
+
+- Let's first try to predict penguin species as a function of body mass, flipper length, and sex
+
+```{r}
+f1 <- species ~ body_mass_g + flipper_length_mm + sex
+
+#Gineralized Linear Model
+
+ad_chin_blr1 <- glm(formula = f1,
+                    data = adelie_chinstrap,
+                    family = "binomial")
+```
+
+Look at the results: 
+```{r}
+ad_chin_blr1
+
+
+summary(ad_chin_blr1)
+#Intercept and flipper length both have low p value meaning they must be significant 
+#use levels(adelie_chinstrap$species) to get our levels if we were to increase by body madd by one gram, for every gram of additional body mass -> it makes it a little less likely it is a chinstrap penguin.
+#For flipper length it is positive, for every additionally mm of flipper length, more liklely it is a chinstrap 
+
+blr1_tidy <- broom::tidy(ad_chin_blr1)
+```
+
+How can we start thinking about this?
+
+- These are coefficients for the log-linear model (e.g. these are coefficients for the predictor variables that relate to the *log odds* of the "Chinstrap" outcome).
+
+- The null hypothesis for coefficients is that they = 0
+
+- The coefficient for body mass, `r round(blr1_tidy[2,2], 5)`, indicates that on average we expect the log odds of a penguin being a Chinstrap (remember, that's the '1' outcome) decreases by `r round(blr1_tidy[2,2], 5)` for each 1 g increase in penguin body mass (see `blr1_tidy` - this coefficient is not significant).
+ 
+Does this align with the mass comparisons for Chinstraps & Adelies we see?
+
+```{r}
+ggplot(data = adelie_chinstrap, aes(x = species, y = body_mass_g)) +
+  geom_jitter(aes(color = sex))
+```
+
+- The coefficient for flipper length, `r round(blr1_tidy[3,2], 2)`, indicates that on average we expect the log odds of a penguin being a Chinstrap (remember, that's the '1' outcome) increases by `r round(blr1_tidy[3,2], 2)` for each 1 mm increase in penguin flipper length (see `blr1_tidy` - this coefficient is significant).
+
+Does this align with the flipper comparisons for Chinstraps & Adelies we see?
+```{r}
+ggplot(data = adelie_chinstrap, aes(x = species, y = flipper_length_mm)) +
+  geom_jitter(aes(color = sex))
+```
+
+- The coefficient for sex, `r round(blr1_tidy[4,2], 2)`, indicates that on average we expect the log odds of a penguin being a Chinstrap (remember, that's the '1' outcome) decreases by `r round(blr1_tidy[4,2], 2)` if the penguin is Male, compared to Female (this is a weird example -- but you can imagine relevant interpretations for other scenarios e.g. "The odds of supporting a bill for conservation (Y/N) increases if the individual identifies as an Environmentalist, compared to those who identify as Not an Environmentalist)."
+
+But log odds are challenging to interpret. Let's find actual *probabilities* associated with a penguin being Adelie or Chinstrap, based on the selected variables and the model outcome.
+
+Adding `type.predict = "response"` here converts the log odds (link), the default reported, to the probability of being Chinstrap for each observation.
+
+```{r}
+blr1_fitted <- ad_chin_blr1 %>% 
+  broom::augment(type.predict = "response")
+```
+
+Look at the outcome data frame.
+
+That shows us the probability (in the `.fitted` column) of a penguin being a Chinstrap based on the three variables `body_mass_g`, `flipper_length_mm`, and `sex`. Take a moment to look through the probabilities. Are there some that have a high probability of being a Chinstrap, but are actually Adelies? YES (e.g. Row 91 shows a probability of 0.78 of being a Chinstrap, based on this model...). But *most* of the actual Adelies in the dataset have a higher probability of being an Adelie based on the model (probability of a Chinstrap < 0.5).
+
+A number of the actual Chinstraps (if we weren't looking at the actual observation) have, based on the model, a higher probability of being an Adelie by classification. This demonstrates why, in Machine Learning, we need a training dataset (which we'd use to create the model), then a totally separate test dataset to see how successfully it classifies the outcome (e.g. penguin species here).
+
+Let's do a couple of quick visualizations, with flipper length (the only significant coefficient) on the x-axis and probability of being a Chinstrap on the y-axis:
+
