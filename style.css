@@ -1,0 +1,20 @@
+@import url('https://fonts.googleapis.com/css2?family=Mochiy+Pop+P+One&family=Neonderthaw&display=swap');
+
+h2 {
+  font-family: "Neonderthaw";
+  font-size: 30px;
+  color: purple;
+}
+
+h3 {
+  font-family: "Neonderthaw";
+  font-size: 24px;
+  color: orange;
+}
+
+body {
+  font-family: "Mochiy Pop P One";
+  font-size: 12px;
+  color: green;
+  background-color: skyblue;
+}

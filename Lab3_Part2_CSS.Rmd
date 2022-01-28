@@ -1,0 +1,24 @@
+---
+title: 'Lab 3 Part 2: CSS Fun'
+author: "Sophia Leiker"
+date: "1/28/2022"
+output: 
+  html_document:
+    css: "style.css"
+---
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## This is a level 2 header
+
+Text goes here
+
+### This is a level 3 header
+
+More text here, yay!
+
+#### This is a level 4 header here
+
+Text
