@@ -1,4 +1,4 @@
-# esm244-lab3-binarylogisticregression
+# Lab 3: Binary Logistic Regression
 
 - fct_drop: drop a factor level that doesn't appear
 - Predict function
@@ -10,3 +10,8 @@
 - AIC and AICc
 - K-fold cross validation
 - Using `caret` ("**C**lassification **A**nd **RE**gression **T**raining")
+
+# Lab 3 Part 2: Using CSS for Markdown Formatting
+- How to link to google fonts
+- How to change header styles
+- How to change backgrounds
